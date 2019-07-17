@@ -1,0 +1,139 @@
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+       name: prom
+       namespace: "{{ project_name }}"
+data:
+  prometheus.yml: |
+
+           scrape_configs:
+             - job_name: 'kubernetes-cadvisor'
+                ##############
+
+               scheme: https
+               tls_config:
+                 ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+               metrics_path: /metrics/cadvisor
+
+               kubernetes_sd_configs:
+               - role: node
+
+               # Exclude a set of high cardinality metrics that can contribute to significant
+               # memory use in large clusters. These can be selectively enabled as necessary
+               # for medium or small clusters.
+               metric_relabel_configs:
+                 - source_labels: [pod_name]
+                   action: drop
+                   regex: '[^-deploy]$'
+
+                 - source_labels: [__name__,namespace,pod_name]
+                   action: keep
+                   regex: '^((container_(?:{% for metric in cadvisor_metrics %}{{ metric }}{% if metric != cadvisor_metrics[-1] %}|{% endif %}{% endfor %}));({% for p in grafana_project_dashboards %}{{ p }}{% if p != grafana_project_dashboards[-1] %}|{% endif %}{% endfor %});(.*)|(machine_cpu_cores;;))$'
+
+               relabel_configs:
+                - action: labelmap
+                  regex: __meta_kubernetes_node_label_(.+)
+
+             - job_name: 'custom-jobs'
+               file_sd_configs:
+                           - files:
+                              - /etc/prometheus-customer-configuration/*.yml
+
+             - job_name: 'kubernetes-pods'
+               {% if project_to_monitoring is defined %}
+
+               metrics_path: /actuator/prometheus
+               kubernetes_sd_configs:
+               - role: pod
+                 namespaces:
+                  names:
+                    - {{ project_to_monitoring }}
+               relabel_configs:
+                 - source_labels: [__meta_kubernetes_pod_annotation_openshift_io_prometheus]
+                   regex: true
+                   action: keep
+                 - source_labels: [__meta_kubernetes_pod_label_app]
+                   target_label: service
+                 - source_labels: [__meta_kubernetes_namespace]
+                   target_label: namespace
+               {% endif %}
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+    name: prom-alerts
+    namespace: "{{ project_name }}"
+data:
+  alertmanager.yml: |
+          global:
+            smtp_smarthost: 'smtp.x5.ru:25'
+            smtp_from: "{{ project_name }}-alert-info.x5.ru"
+
+          route:
+            receiver: 'team-X-mails'
+            group_by: ['alertname', 'cluster']
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 3h
+            routes:
+            - match_re:
+                service: ^(foo1|foo2|baz)$
+              receiver: team-X-mails
+              routes:
+              - match:
+                  severity: critical
+                receiver: team-X-pager
+            - match:
+                service: files
+              receiver: team-Y-mails
+              routes:
+              - match:
+                  severity: critical
+                receiver: team-Y-pager
+            - match:
+                service: database
+              receiver: team-DB-pager
+              group_by: [alertname, cluster, database]
+
+              routes:
+              - match:
+                  owner: team-X
+                receiver: team-X-pager
+
+              - match:
+                  owner: team-Y
+                receiver: team-Y-pager
+
+          inhibit_rules:
+          - source_match:
+              severity: 'critical'
+            target_match:
+              severity: 'warning'
+            equal: ['alertname']
+
+          receivers:
+          - name: 'team-X-mails'
+            email_configs:
+            - to: 'team-X+alerts@example.org, team-Y+alerts@example.org'
+
+          - name: 'team-X-pager'
+            email_configs:
+            - to: 'team-X+alerts-critical@example.org'
+            pagerduty_configs:
+            - routing_key: <team-X-key>
+
+          - name: 'team-Y-mails'
+            email_configs:
+            - to: 'team-Y+alerts@example.org'
+
+          - name: 'team-Y-pager'
+            pagerduty_configs:
+            - routing_key: <team-Y-key>
+
+          - name: 'team-DB-pager'
+            pagerduty_configs:
+            - routing_key: <team-DB-key>

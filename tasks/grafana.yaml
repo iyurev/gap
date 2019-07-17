@@ -1,0 +1,16 @@
+- name: Create grafana configmaps
+  k8s:
+    state: present
+    definition:  "{{ item }}"
+  loop: "{{ lookup('template', 'grafana-configmaps.yaml') | from_yaml_all | list }}"
+
+- name: Create grafana dashboards configmap
+  k8s:
+     state: present
+     definition: "{{ lookup('template', 'project-metrics-dashboard.yaml') | from_yaml }}"
+
+- name: Create grafana deployment
+  k8s:
+    state: present
+    definition: "{{ item }}"
+  loop: "{{ lookup('template', 'grafana.yaml') | from_yaml_all | list }}"

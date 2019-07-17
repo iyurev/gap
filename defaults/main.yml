@@ -1,0 +1,66 @@
+---
+#Global role parameters
+grafana_proxy_sa: default
+retention_days: 30
+router_prefix: foo-router-wildcard.com
+#Grafana deployment
+grafana_app_name: grafana
+
+grafana_project_dashboards:
+                      - "default"
+#Prometheus
+prometheus_session_secret: "SECRET"
+
+registry_prefix: private.registry.com
+
+#Prometheus images
+prometheus_image_name: openshift/prometheus
+prometheus_image_tag: v2.3.2
+#Grafana images
+grafana_image_name: grafana
+grafana_image_tag: 5.2
+
+alertmanager_image_name: prometheus-alertmanager
+alertmanager_image_tag: v0.15.1
+
+oauth_proxy_image_name: openshift/oauth-proxy
+oauth_proxy_image_tag: latest
+
+prom_cpu_request: 500m
+prom_cpu_limit: 1
+prom_ram_request: 512Mi
+prom_ram_limit: 1Gi
+#Grafana
+grafana_cpu_request: 500m
+grafana_cpu_limit: 1
+grafana_ram_request: 512Mi
+grafana_ram_limit: 1Gi
+
+cadvisor_metrics:
+  - fs_usage_bytes
+  - fs_reads_total
+  - fs_writes_total
+  - network_receive_bytes_total
+  - network_transmit_bytes_total
+  - memory_working_set_bytes
+  - cpu_usage_seconds_total
+  - memory_cache
+  - memory_failcnt
+  - memory_failures_total
+  - memory_max_usage_bytes
+
+#Storage class
+storage_class_name: super-storage-class
+#Storage settings
+use_grafana_pv: yes
+use_prometheus_pv: yes
+
+grafana_pvc_name: grafana
+prometheus_pvc_name: prometheus
+grafana_pvc_size: 4Gi
+prometheus_pvc_size: 50Gi
+
+
+
+
+

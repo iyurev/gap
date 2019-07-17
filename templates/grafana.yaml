@@ -1,0 +1,157 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "{{ grafana_proxy_sa }}"
+  namespace: "{{ project_name }}"
+  annotations:
+    serviceaccounts.openshift.io/oauth-redirectreference.primary: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"{{ grafana_app_name }}"}}'
+
+---
+kind: "DeploymentConfig"
+apiVersion: v1
+metadata:
+  name: "{{ grafana_app_name }}"
+  namespace: "{{ project_name }}"
+spec:
+  template:
+    metadata:
+      labels:
+        name: "{{ grafana_app_name }}"
+    spec:
+      containers:
+        - name: "{{ grafana_app_name }}"
+          image: "{{ grafana_image }}"
+          resources:
+                limits:
+                   cpu: "{{ grafana_cpu_limit }}"
+                   memory: "{{ grafana_ram_limit }}"
+                requests:
+                   cpu: "{{ grafana_cpu_request }}"
+                   memory: "{{ grafana_ram_request }}"
+          ports:
+            - containerPort: 3000
+              protocol: "TCP"
+
+          volumeMounts:
+            - mountPath: "/var/lib/grafana"
+              name: grafana-data
+
+            - mountPath: /etc/grafana/
+              name: grafana-config
+
+            - mountPath: /usr/share/grafana/conf/provisioning/datasources/
+              name: datasources-config
+
+            - mountPath: /usr/share/grafana/conf/provisioning/dashboards/
+              name: provisioning-dashboards
+
+            - mountPath: /tmp/
+              name: project-metrics-dashboard
+
+        - name: oauth-proxy
+          image: "{{ oauth_proxy_image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+              name: public
+          args:
+            - "--https-address=:8443"
+            - "--provider=openshift"
+            - "--openshift-service-account={{ grafana_proxy_sa }}"
+            - "--pass-basic-auth=false"
+            - "--upstream=http://localhost:3000"
+            - "--tls-cert=/etc/tls/private/tls.crt"
+            - "--tls-key=/etc/tls/private/tls.key"
+            - "--cookie-secret=SECRET"
+            - '--openshift-sar={"namespace":"{{ project_name }}","resource":"services","name":"{{ grafana_app_name }}","verb":"get"}'
+
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: "{{ grafana_app_name }}-tls"
+
+      volumes:
+        - configMap:
+                name: "grafana-ini"
+          name: grafana-config
+
+        - configMap:
+               name: "grafana-datasources"
+          name: datasources-config
+
+        - configMap:
+           name: "grafana-dashboards"
+          name: provisioning-dashboards
+
+        - configMap:
+           name: "grafana-project-metrics"
+          name: project-metrics-dashboard
+
+        - name: "{{ grafana_app_name }}-tls"
+          secret:
+              secretName: "{{ grafana_app_name }}-tls"
+
+        {% if use_grafana_pv is defined and use_grafana_pv | bool == true -%}
+        - name: grafana-data
+          persistentVolumeClaim:
+                claimName: {{ grafana_pvc_name }}
+        {%- endif %}
+
+        {% if use_grafana_pv is defined and use_grafana_pv | bool == false -%}
+        - name: grafana-data
+          empthyDir: {}
+        {%- endif %}
+
+  replicas: 1
+  triggers:
+    - type: "ConfigChange"
+  strategy:
+    type: "Rolling"
+  paused: false
+  revisionHistoryLimit: 2
+  minReadySeconds: 0
+
+---
+kind: "Service"
+apiVersion: v1
+metadata:
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: "{{ grafana_app_name }}-tls"
+  labels:
+    name: "{{ grafana_app_name }}"
+  name: "{{ grafana_app_name }}"
+  namespace: "{{ project_name }}"
+spec:
+  ports:
+  - name: 8443-tcp
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    name: "{{ grafana_app_name }}"
+    deploymentconfig: "{{ grafana_app_name }}"
+  sessionAffinity: None
+  type: ClusterIP
+
+---
+kind: Route
+apiVersion: v1
+metadata:
+  labels:
+    app: "{{ grafana_app_name }}"
+    name: "{{ grafana_app_name }}"
+  name: "{{ grafana_app_name }}"
+  namespace: "{{ project_name }}"
+spec:
+  host: "{{ grafana_app_name }}-{{ project_name }}.{{ router_prefix }}"
+  port:
+     targetPort: 8443
+  to:
+    kind: Service
+    name: "{{ grafana_app_name }}"
+    weight: 100
+  wildcardPolicy: None
+  tls:
+    termination: Reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+

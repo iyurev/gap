@@ -1,0 +1,14 @@
+- name: Create  prometheus configmaps
+  k8s:
+    state: present
+    definition: "{{ item }}"
+  loop: "{{ lookup('template', 'prometheus-configmaps.yaml') | from_yaml_all | list }}"
+
+
+- name: Create  prometheus deployment
+  k8s:
+    state: present
+    definition: "{{ item }}"
+  loop: "{{ lookup('template', 'prometheus.yaml') | from_yaml_all | list }}"
+
+

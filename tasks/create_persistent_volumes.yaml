@@ -1,0 +1,55 @@
+- name: "Check if persistent volume: {{ grafana_pvc_name }} is exists"
+  k8s_facts:
+      kind: PersistentVolumeClaim
+      namespace: "{{ project_name }}"
+      name: "{{ grafana_pvc_name }}"
+  register:  grafana_pvc_name_stat
+
+- name: "Check if persistent volume: {{ prometheus_pvc_name }} is exists"
+  k8s_facts:
+    kind: PersistentVolumeClaim
+    namespace: "{{ project_name }}"
+    name: "{{ prometheus_pvc_name }}"
+  register:  prometheus_pvc_name_stat
+
+
+- name: "Create {{ grafana_pvc_name }} PVC."
+  k8s:
+    state: present
+    definition:
+        api_version: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          namespace: "{{ project_name }}"
+          annotations:
+            volume.beta.kubernetes.io/storage-class: "{{ storage_class_name }}"
+          name: "{{ grafana_pvc_name }}"
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          volumeMode: Filesystem
+          resources:
+            requests:
+              storage: "{{ grafana_pvc_size }}"
+  when: (use_grafana_pv is defined and use_grafana_pv | bool == true)  and ( grafana_pvc_name_stat.resources | length == 0)
+
+
+- name: "Create {{ prometheus_pvc_name }} PVC."
+  k8s:
+    state: present
+    definition:
+      api_version: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        namespace: "{{ project_name }}"
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "{{ storage_class_name }}"
+        name: "{{ prometheus_pvc_name }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: "{{ prometheus_pvc_size }}"
+  when: (use_prometheus_pv is defined and use_prometheus_pv | bool == true ) and (prometheus_pvc_name_stat.resources | length == 0)

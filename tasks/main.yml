@@ -1,0 +1,20 @@
+---
+ - set_fact:
+         prometheus_image: "{{ registry_prefix }}/{{ prometheus_image_name }}:{{ prometheus_image_tag }}"
+         grafana_image: "{{ registry_prefix }}/{{ grafana_image_name }}:{{ grafana_image_tag }}"
+         alertmanager_image: "{{ registry_prefix }}/{{ alertmanager_image_name }}:{{ alertmanager_image_tag }}"
+         oauth_proxy_image: "{{ registry_prefix }}/{{ oauth_proxy_image_name }}:{{ oauth_proxy_image_tag }}"
+   when: registry_prefix != ''
+
+ - set_fact:
+     prometheus_image: "{{ prometheus_image_name }}:{{ prometheus_image_tag }}"
+     grafana_image: "{{ grafana_image_name }}:{{ grafana_image_tag }}"
+     alertmanager_image: "{{ alertmanager_image_name }}:{{ alertmanager_image_tag }}"
+     oauth_proxy_image: "{{ oauth_proxy_image_name }}:{{ oauth_proxy_image_tag }}"
+   when: registry_prefix == ''
+
+ - import_tasks: create_persistent_volumes.yaml
+ - import_tasks: prometheus.yaml
+ - import_tasks: grafana.yaml
+ #- import_tasks: networkpolicies.yaml
+

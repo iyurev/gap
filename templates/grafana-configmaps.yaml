@@ -1,0 +1,156 @@
+---
+kind: "ConfigMap"
+apiVersion: v1
+metadata:
+     name: "grafana-ini"
+     namespace: "{{ project_name }}"
+data:
+ grafana.ini: |
+   #######################Main config##################################
+   app_mode = production
+   instance_name = "{{ project_name}}-{{ grafana_app_name }}"
+   #################Paths##############################################
+   [paths]
+   data = /var/lib/grafana
+   logs = /var/log/grafana
+   plugins = /var/lib/grafana/plugins
+   provisioning = conf/provisioning
+   #################################### Server ####################################
+   [server]
+   protocol = http
+   http_port = 3000
+   domain = "{{ project_name }}-{{ grafana_app_name }}.{{ router_prefix }}"
+   enforce_domain = false
+   #################################### Database ####################################
+   [database]
+   log_queries =
+   #################################### Session ####################################
+   [session]
+   #################################### Data proxy ###########################
+   [dataproxy]
+   #################################### Analytics ####################################
+   [analytics]
+   reporting_enabled = false
+   check_for_updates = false
+   #################################### Security ####################################
+   [security]
+   admin_user = superuser
+   admin_password = {{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}
+   disable_gravatar = true
+   #################################### Snapshots ###########################
+   [snapshots]
+   external_enabled = false
+   #################################### Dashboards History ##################
+   [dashboards]
+   #################################### Users ###############################
+   [users]
+   # disable user signup / registration
+   allow_sign_up = true
+   allow_org_create = false
+   auto_assign_org_role = Admin
+   ###############Auth#########################################################
+   [auth]
+   #################################### Anonymous Auth ##########################
+   [auth.anonymous]
+   #################################### Github Auth ##########################
+   [auth.github]
+
+   #################################### Google Auth ##########################
+   [auth.google]
+
+   #################################### Generic OAuth ##########################
+   [auth.generic_oauth]
+
+   #################################### Grafana.com Auth ####################
+   [auth.grafana_com]
+
+   #################################### Auth Proxy ##########################
+   [auth.proxy]
+   # Defaults to false, but set to true to enable this feature
+   enabled = true
+   # HTTP Header name that will contain the username or email
+   header_name = X-Forwarded-User
+   # HTTP Header property, defaults to `username` but can also be `email`
+   header_property = username
+   # Set to `true` to enable auto sign up of users who do not exist in Grafana DB. Defaults to `true`.
+   auto_sign_up = true
+   # Limit where auth proxy requests come from by configuring a list of IP addresses.
+   # This can be used to prevent users spoofing the X-WEBAUTH-USER header.
+   whitelist =
+   # Optionally define more headers to sync other user attributes
+   # Example `headers = Name:X-WEBAUTH-NAME Email:X-WEBAUTH-EMAIL``
+   headers =
+   #################################### Basic Auth ##########################
+   [auth.basic]
+   enabled = true
+   #################################### Auth LDAP ##########################
+   [auth.ldap]
+   ;enabled = false
+   ;config_file = /etc/grafana/ldap.toml
+   ;allow_sign_up = true
+   #################################### SMTP / Emailing ##########################
+   [smtp]
+   enabled = true
+   host = smtp.x5.ru:25
+   #################################### Logging ##########################
+   [log]
+   [log.console]
+   [log.file]
+   [log.syslog]
+   #################################### Alerting ############################
+   [alerting]
+   #################################### Explore #############################
+   [explore]
+   #################################### Internal Grafana Metrics ##########################
+   [metrics]
+   # Disable / Enable internal metrics
+   enabled           = false
+   [metrics.graphite]
+   #################################### Distributed tracing ############
+   [tracing.jaeger]
+   #################################### Grafana.com integration  ##########################
+   # Url used to to import dashboards directly from Grafana.com
+   [grafana_com]
+   #################################### External image storage ##########################
+   [external_image_storage]
+   [external_image_storage.s3]
+   [external_image_storage.webdav]
+   [external_image_storage.gcs]
+   [external_image_storage.azure_blob]
+   [external_image_storage.local]
+
+---
+kind: "ConfigMap"
+apiVersion: v1
+metadata:
+ name: "grafana-datasources"
+ namespace: "{{ project_name }}"
+data:
+ datasource.yaml:  |
+              apiVersion: 1
+              datasources:
+               - name: "{{ project_name }}-prometheus"
+                 type: prometheus
+                 access: proxy
+                 url: "http://prom-int.{{ project_name }}.svc.cluster.local:9099"
+                 editable: false
+
+---
+kind: "ConfigMap"
+apiVersion: v1
+metadata:
+  name: "grafana-dashboards"
+  namespace: "{{ project_name }}"
+data:
+  dashboards.yaml: |
+             apiVersion: 1
+             providers:
+             - name: 'default'
+               orgId: 1
+               folder: ''
+               type: file
+               disableDeletion: false
+               updateIntervalSeconds: 300
+               options:
+                 path: /tmp/
+
